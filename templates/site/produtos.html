@@ -1,26 +1,61 @@
 {% extends 'site/base.html' %}
-{% block title %}
-  Categorias
-{% endblock %}
+
+{% block title %}Produtos - Distribuidora{% endblock %}
+
 {% block content %}
-  <h3 class="fw-bold mb-3">Produtos</h3>
-  <div class="row g-1">
-    {% for item in produto %}
-      <div class="col-6 col-md-3 col-lg-3">
-        <div class="card h-100 shadow-sm">
-          <!-- Imagem do produto --> <img src="data:image/jpeg;base64,
-            {{ item.imagem }}" width="50" class="card-img-top p-2" alt="{{ item.nome }}" style="height: 110px; object-fit: contain;" />
-          <div class="card-body p-2">
-            <!-- Nome -->
-            <h6 class="card-title mb-1">{{ item.nome }}</h6>
-            <h6 class="card-title mb-1">{{ item.nome_categoria }}</h6>
-            <!-- Preço e botão --> <div class="d-flex justify-content-between align-items-center gap-1">
-              <strong class="small">R$ {{ '%.2f'|format(item.preco) }}</strong>
-              <h6 class="card-title mb-1">{{ item.descricao }}</h6>
-            </div>
-          </div>
-        </div>
-      </div>
-    {% endfor %}
-  </div>
+<div class="store-content catalog-page">
+    <div class="page-heading">
+        <p class="eyebrow">TUDO EM UM SÓ LUGAR</p>
+        <h1>Produtos</h1>
+        <p>Encontre o que procura no catálogo da Distribuidora.</p>
+    </div>
+
+    <form class="filter-bar" action="{{ url_for('produtos') }}" method="get">
+        <label class="filter-search">
+            <span>Buscar</span>
+            <input type="search" name="q" value="{{ busca }}" placeholder="Nome do produto ou categoria">
+        </label>
+        <label>
+            <span>Categoria</span>
+            <select name="categoria">
+                <option value="">Todas as categorias</option>
+                {% for categoria in categorias %}
+                    <option value="{{ categoria.id }}" {% if categoria_selecionada == categoria.id %}selected{% endif %}>{{ categoria.nome }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span>Ordenar por</span>
+            <select name="ordem">
+                <option value="menor-preco" {% if ordem == 'menor-preco' %}selected{% endif %}>Menor preço</option>
+                <option value="maior-preco" {% if ordem == 'maior-preco' %}selected{% endif %}>Maior preço</option>
+                <option value="nome" {% if ordem == 'nome' %}selected{% endif %}>Nome</option>
+            </select>
+        </label>
+        <button class="button button-primary" type="submit"><i class="bi bi-sliders2"></i> Filtrar</button>
+        {% if busca or categoria_selecionada or ordem != 'menor-preco' %}
+            <a class="clear-filters" href="{{ url_for('produtos') }}">Limpar</a>
+        {% endif %}
+    </form>
+
+    <div class="results-line">
+        <span>{{ produto|length }} {% if produto|length == 1 %}produto encontrado{% else %}produtos encontrados{% endif %}</span>
+        {% if busca %}<span class="search-summary">Busca: “{{ busca }}”</span>{% endif %}
+    </div>
+
+    {% if produto %}
+    <div class="product-grid">
+        {% for item in produto %}
+            {% include 'site/_produto_card.html' %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <span class="empty-state-icon"><i class="bi bi-search"></i></span>
+        <h2>Nenhum produto encontrado</h2>
+        <p>Tente outro termo ou remova algum filtro.</p>
+        <a class="button button-primary" href="{{ url_for('produtos') }}">Ver todos os produtos</a>
+    </div>
+    {% endif %}
+</div>
 {% endblock %}

@@ -1,14 +1,8 @@
-from flask import Flask, render_template, redirect, request, url_for, flash
+from flask import Flask, render_template, redirect, request, url_for
 import sqlite3
-from flask_login import login_manager
-from flask_bcrypt import Bcrypt
-from functools import wraps
 import base64
-from flask import session
 
 app = Flask(__name__)
-app.secret_key = "uma_chave_muito_secreta_e_aleatoria"
-bcrypt = Bcrypt(app)
 
 def conexao():
     conn = sqlite3.connect("database.db")
@@ -16,61 +10,7 @@ def conexao():
     return conn
 
 
-def login_required(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        if 'logs' not in session:
-            flash("Você precisa fazer login primeiro.")
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return wrapper
-
-def usuario_inicial(username, password):    
-    password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-    conn = conexao()
-    cursor = conn.cursor()
-    try:
-        cursor.execute('INSERT INTO logs (username, password_hash) VALUES (?, ?)', (username, password_hash))
-        conn.commit()
-        print(f"Usuário '{username}' criado com sucesso.")
-    except sqlite3.IntegrityError:
-        print(f"Usuário '{username}' já existe.")
-    conn.close()
-usuario_inicial("admin", "senha123")
-
-
-
-@app.route("/login", methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        nome = request.form.get('username')
-        senha = request.form.get('password')
-
-        if nome and senha:
-            conn = conexao()
-
-            
-            usuario = conn.execute(
-                'SELECT username, password_hash FROM logs WHERE username=?',
-                (nome,)
-            ).fetchone()
-
-            if usuario:
-                hashed_password = usuario['password_hash']
-
-                # senha digitada com o hash do banco
-                if bcrypt.check_password_hash(hashed_password, senha):
-                    session['logs'] = usuario['username']  
-                    return redirect(url_for('index'))
-                else:
-                    print("Senha incorreta")
-            else:
-                print("Usuário não encontrado")
-
-    return render_template('admin/login.html')
-
 @app.route("/")
-@login_required
 def index():
     
     return render_template("admin/index.html")
@@ -79,7 +19,6 @@ def index():
 
 
 @app.route("/listar_categorias")
-@login_required
 def listarCategoria():
     conn = conexao()
     categoria = conn.execute("select * from categoria")
@@ -87,7 +26,6 @@ def listarCategoria():
 
 
 @app.route("/listar_produtos")
-@login_required
 def listarProdutos():
     conn = conexao()
     produto = conn.execute(
@@ -100,7 +38,6 @@ def listarProdutos():
 
 
 @app.route("/cadastrar_categorias", methods=["GET", "POST"])
-@login_required
 def cadastrarCategoria():
 
     if request.method == "POST":
@@ -125,7 +62,6 @@ def cadastrarCategoria():
 
 
 @app.route("/cadastrar_produto", methods=["GET", "POST"])
-@login_required
 def cadastrarProduto():
     conn = conexao()
     if request.method == "POST":
@@ -157,7 +93,6 @@ def cadastrarProduto():
 
 
 @app.route("/editarcategoria/<int:id>", methods=["GET", "POST"])
-@login_required
 def editarCategoria(id):
     conn = conexao()
     categoria = conn.execute("select * from categoria where id=?", (id,)).fetchone()
@@ -202,24 +137,25 @@ def editarCategoria(id):
     return render_template("admin/editar_categoria.html", categoria=categoria)
 
 @app.route("/editarProduto/<int:id>", methods=["GET", "POST"])
-@login_required
 def editarProduto(id):
     conn = conexao()
-    produto= conn.execute("select * from produto where id=?", (id,)).fetchone()
+    produto = conn.execute(
+        "SELECT * FROM produto WHERE id = ?", (id,)
+    ).fetchone()
 
     if request.method == "POST":
         nome_produto = request.form.get("nome_produto")
-        preco = float(request.form.get("preco"))
+        preco = request.form.get("preco")
         ativo = request.form.get("ativo")
         imagem = request.files.get("imagem")
-        imagem_base64 = base64.b64encode(imagem.read()).decode("utf-8")
+
         if nome_produto:
-            conn = conexao()
-            if imagem:
+            if imagem and imagem.filename:
+                imagem_base64 = base64.b64encode(imagem.read()).decode("utf-8")
                 conn.execute(
-                    """UPDATE produto SET nome=?, preco=?,
-                              ativo=?,
-                              imagem=? WHERE id=?""",
+                    """UPDATE produto
+                       SET nome = ?, preco = ?, ativo = ?, imagem = ?
+                       WHERE id = ?""",
                     (
                         nome_produto,
                         preco,
@@ -230,13 +166,13 @@ def editarProduto(id):
                 )
             else:
                 conn.execute(
-                    """UPDATE produto SET nome=?, preco=?,
-                              ativo=? imagem=? WHERE id=?""",
+                    """UPDATE produto
+                       SET nome = ?, preco = ?, ativo = ?
+                       WHERE id = ?""",
                     (
                         nome_produto,
                         preco,
                         ativo,
-                        imagem_base64,
                         id,
                     ),
                 )
@@ -245,12 +181,12 @@ def editarProduto(id):
             conn.close()
             return redirect(url_for("listarProdutos"))
 
+            conn.close()
     return render_template("admin/editar_produto.html", produto=produto)
 
 
 
 @app.route("/excluir_categoria/<int:id>", methods=["GET", "POST"])
-@login_required
 def excluirCategoria(id):
     conn = conexao()
     categoria = conn.execute(
@@ -268,7 +204,6 @@ def excluirCategoria(id):
     return render_template("admin/excluir_categoria.html", categoria=categoria)
 
 @app.route("/excluir_produto/<int:id>", methods=["GET", "POST"])
-@login_required
 def excluirProduto(id):
     conn = conexao()
     produto = conn.execute(
@@ -288,17 +223,17 @@ def excluirProduto(id):
 @app.route("/home")
 def home():
     conn = conexao()
-    produto = conn.execute('''SELECT produto.*,
-                           categoria.nome AS nome_categoria
-                           FROM produto
-                           LEFT JOIN categoria
-                           ON produto.id_categoria = categoria.id
-                           ORDER BY produto.preco ASC
-                           LIMIT 3;''').fetchall()
-    conn = conexao()
-    categoria = conn.execute("select * from categoria")
-    
-    return render_template("site/index.html", produto = produto,categoria=categoria)
+    produto = conn.execute(
+        """SELECT produto.*, categoria.nome AS nome_categoria
+           FROM produto
+           LEFT JOIN categoria ON produto.id_categoria = categoria.id
+           ORDER BY produto.preco ASC
+           LIMIT 4"""
+    ).fetchall()
+    categoria = conn.execute("SELECT * FROM categoria ORDER BY nome").fetchall()
+    conn.close()
+
+    return render_template("site/index.html", produto=produto, categoria=categoria)
 
 @app.route("/categorias")
 def categorias():
@@ -310,16 +245,44 @@ def categorias():
 @app.route("/produtos")
 def produtos():
     conn = conexao()
-    produto = conn.execute('''SELECT produto.*,
-                           categoria.nome AS nome_categoria
-                           FROM produto
-                           LEFT JOIN categoria
-                           ON produto.id_categoria = categoria.id
-                           ORDER BY produto.preco ASC
-                           LIMIT 3;''').fetchall()
-    conn = conexao()
-    
-    return render_template("site/produtos.html", produto = produto)
+    busca = request.args.get("q", "").strip()
+    categoria_selecionada = request.args.get("categoria", type=int)
+    ordem = request.args.get("ordem", "menor-preco")
+    consulta = """SELECT produto.*, categoria.nome AS nome_categoria
+                  FROM produto
+                  LEFT JOIN categoria ON produto.id_categoria = categoria.id
+                  WHERE 1 = 1"""
+    parametros = []
+
+    if busca:
+        consulta += " AND (produto.nome LIKE ? OR categoria.nome LIKE ?)"
+        parametros.extend((f"%{busca}%", f"%{busca}%"))
+
+    if categoria_selecionada is not None:
+        consulta += " AND produto.id_categoria = ?"
+        parametros.append(categoria_selecionada)
+
+    ordenacoes = {
+        "menor-preco": "produto.preco ASC",
+        "maior-preco": "produto.preco DESC",
+        "nome": "produto.nome COLLATE NOCASE ASC",
+    }
+    if ordem not in ordenacoes:
+        ordem = "menor-preco"
+    consulta += f" ORDER BY {ordenacoes[ordem]}"
+
+    produto = conn.execute(consulta, parametros).fetchall()
+    categorias = conn.execute("SELECT * FROM categoria ORDER BY nome").fetchall()
+    conn.close()
+
+    return render_template(
+        "site/produtos.html",
+        produto=produto,
+        categorias=categorias,
+        busca=busca,
+        categoria_selecionada=categoria_selecionada,
+        ordem=ordem,
+    )
 
 @app.route("/verCategoria/<int:id>",methods=["GET", "POST"])
 def verCategoria(id):

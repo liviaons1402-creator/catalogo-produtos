@@ -1,0 +1,20 @@
+<article class="product-card">
+    <div class="product-media">
+        {% if item.imagem %}
+            <img src="data:image/jpeg;base64,{{ item.imagem }}" alt="{{ item.nome }}" loading="lazy">
+        {% else %}
+            <i class="bi bi-basket2 product-image-placeholder" aria-hidden="true"></i>
+        {% endif %}
+    </div>
+    <div class="product-info">
+        {% if item.nome_categoria %}
+            <span class="product-category">{{ item.nome_categoria }}</span>
+        {% endif %}
+        <h3>{{ item.nome }}</h3>
+        {% if item.preco is not none %}
+            <p class="product-price">R$ {{ '%.2f'|format(item.preco) }}</p>
+        {% else %}
+            <p class="product-price price-unavailable">Consulte o preço</p>
+        {% endif %}
+    </div>
+</article>
